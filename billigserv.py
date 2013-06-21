@@ -3,6 +3,7 @@
 import socket
 import os
 import time
+import threading
 
 def buildLocationString(reqPath):
     if reqPath == "/":
@@ -15,21 +16,9 @@ def buildLocationString(reqPath):
     else:
         return None
 
-if __name__ == '__main__':
-    s = socket.socket()
-    host = socket.gethostname()
-    port = 8080
-    s.bind((host, port))
-    s.listen(5)
-
-    print("billiger HTTP-Server jetzt live auf ", host, ':', port)
-
-    while True:
-        conn, clientaddr = s.accept()
-        print('Verbindung erhalten von: ', clientaddr)
-
+def handleRequestInThread(clsock):
         # handle connection request here
-        commandInfoList = str(conn.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
+        commandInfoList = str(clsock.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
 
         if len(commandInfoList) >= 2:
             fileLocation = commandInfoList[1]
@@ -56,9 +45,26 @@ if __name__ == '__main__':
 
 
         headerBytes += time.strftime('\nDate: %a, %d %b %Y %H:%M:%S GMT')
-        headerBytes += "\nContent-Type: text/html\n"
-        conn.send(headerBytes.encode("utf-8"))
-        conn.send(answerBytes)
+        headerBytes += "\nContent-Type: text/html"
+        headerBytes += "\nX-Info: Billiger gehts nicht!\n"
+        clsock.send(headerBytes.encode("utf-8"))
+        clsock.send(answerBytes)
 
         # finally close connection
-        conn.close()
+        clsock.close()
+
+if __name__ == '__main__':
+    s = socket.socket()
+    host = socket.gethostname()
+    port = 8080
+    s.bind((host, port))
+    s.listen(5)
+
+    print("billiger HTTP-Server jetzt live auf ", host, ':', port)
+
+    while True:
+        conn, clientaddr = s.accept()
+
+        t = threading.Thread(target=handleRequestInThread, args=[conn])
+        t.start()
+        print('Abarbeitung von Request ', clientaddr, ' in Thread ', t.name)
