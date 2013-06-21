@@ -2,6 +2,7 @@
 
 import socket
 import os
+import time
 
 def buildLocationString(reqPath):
     if reqPath == "/":
@@ -29,24 +30,34 @@ if __name__ == '__main__':
 
         # handle connection request here
         commandInfoList = str(conn.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
-        fileLocation = commandInfoList[1]
-        httpCommand = commandInfoList[0]
 
-        del commandInfoList
+        if len(commandInfoList) >= 2:
+            fileLocation = commandInfoList[1]
+            httpCommand = commandInfoList[0]
 
-        answerBytes  = None
-        if httpCommand == "GET":
-            fileLocation = buildLocationString(fileLocation)
+            del commandInfoList
 
-            if fileLocation != None:
-                inFile = open(fileLocation, 'rt')
-                answerBytes = inFile.read().encode("utf-8")
-                inFile.close()
+            headerBytes  = ""
+            answerBytes  = ""
+            if httpCommand == "GET":
+                fileLocation = buildLocationString(fileLocation)
+
+                if fileLocation != None:
+                    inFile = open(fileLocation, 'rt')
+                    answerBytes = inFile.read().encode("utf-8")
+                    inFile.close()
+                    headerBytes = "HTTP/1.1 200 OK"
+                else:
+                    headerBytes = "HTTP/1.1 404 File Not Found"
             else:
-                answerBytes = "Status: HTTP/1.1 404 File Not Found".encode("utf-8")
+                headerBytes = "HTTP/1.1 400 Bad Request"
         else:
-            answerBytes = "Status: HTTP/1.1 400 Bad Request".encode("utf-8")
+            headerBytes = "HTTP/1.1 400 Bad Request"
 
+
+        headerBytes += time.strftime('\nDate: %a, %d %b %Y %H:%M:%S GMT')
+        headerBytes += "\nContent-Type: text/html\n"
+        conn.send(headerBytes.encode("utf-8"))
         conn.send(answerBytes)
 
         # finally close connection
