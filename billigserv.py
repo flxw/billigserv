@@ -3,36 +3,51 @@
 import socket
 import os
 
-s = socket.socket()
-host = socket.gethostname()
-port = 8080
-s.bind((host, port))
-s.listen(5)
+def buildLocationString(reqPath):
+    if reqPath == "/":
+        reqPath = os.getcwd() + "/index.html"
+    else:
+        reqPath = os.getcwd() + reqPath
 
-print("billiger HTTP-Server jetzt live auf ", host, ':', port)
+    if os.path.exists(reqPath):
+        return reqPath
+    else:
+        return None
 
-while True:
-    conn, clientaddr = s.accept()
-    print('Verbindung erhalten von: ', clientaddr)
+if __name__ == '__main__':
+    s = socket.socket()
+    host = socket.gethostname()
+    port = 8080
+    s.bind((host, port))
+    s.listen(5)
 
-    # handle connection request here
-    commandInfoList = str(conn.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
-    fileLocation = commandInfoList[1]
-    httpCommand = commandInfoList[0]
+    print("billiger HTTP-Server jetzt live auf ", host, ':', port)
 
-    del commandInfoList
+    while True:
+        conn, clientaddr = s.accept()
+        print('Verbindung erhalten von: ', clientaddr)
 
-    if httpCommand == "GET":
-        if fileLocation == "/":
-            fileLocation = os.getcwd() + "/index.html"
+        # handle connection request here
+        commandInfoList = str(conn.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
+        fileLocation = commandInfoList[1]
+        httpCommand = commandInfoList[0]
+
+        del commandInfoList
+
+        answerBytes  = None
+        if httpCommand == "GET":
+            fileLocation = buildLocationString(fileLocation)
+
+            if fileLocation != None:
+                inFile = open(fileLocation, 'rt')
+                answerBytes = inFile.read().encode("utf-8")
+                inFile.close()
+            else:
+                answerBytes = "Status: HTTP/1.1 404 File Not Found".encode("utf-8")
         else:
-            fileLocation = os.getcwd() + fileLocation
-    
-        inFile = open(fileLocation, 'rt')
-        fileBytes = inFile.read().encode("utf-8")
-        inFile.close()
+            answerBytes = "Status: HTTP/1.1 400 Bad Request".encode("utf-8")
 
-        conn.send(fileBytes)
+        conn.send(answerBytes)
 
-    # finally close connection
-    conn.close()
+        # finally close connection
+        conn.close()
