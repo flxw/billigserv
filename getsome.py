@@ -16,55 +16,77 @@ def buildLocationString(reqPath):
     else:
         return None
 
+def buildResponseHeader(status):
+    responseDict = { 200 : "HTTP/1.1 200 OK",
+                   400 : "HTTP/1.1 400 Bad Request",
+                   404 : "HTTP/1.1 404 File not found" }
+
+    header  =  responseDict[statusCode] + "\n"
+    header  += time.strftime("Date: %a, %d %b %Y %H:%M:%S GMT\n")
+    header  += "Content-Type: text/html\n"
+    header  += "Content-Encoding: UTF-8\n"
+    header  += "Server: getsome\n"
+
+    return header
+
+def sendResponse(sinkSocket, statusCode, responseContent=""):
+    """sinkSocket = Socket that data will be sent to
+       statusCode = integer with HTTP response code
+       responseContent = string that contains the response body"""
+
+    responseHeader = buildResponseHeader(statusCode)
+    
+    sinkSocket.send(responseHeader.encode("utf-8"))
+    sinkSocket.send(responseContent.encode("utf-8"))
+
+    # finally close connection
+    sinkSocket.close()
+
 def handleRequestInThread(clsock):
-        # handle connection request here
-        commandInfoList = str(clsock.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
+    # handle connection request here
+    commandInfoList = str(clsock.recv(4096), 'utf-8').split('\n',1)[0].split(' ')
 
-        if len(commandInfoList) >= 2:
-            fileLocation = commandInfoList[1]
-            httpCommand = commandInfoList[0]
+    if len(commandInfoList) < 2:
+        print("strange list received: ", commandInfoList)
+        sendResponse(clsock, 400)
+        return;
 
-            del commandInfoList
+    fileLocation = commandInfoList[1]
+    httpCommand = commandInfoList[0]
 
-            headerBytes  = ""
-            answerBytes  = ""
-            if httpCommand == "GET":
-                fileLocation = buildLocationString(fileLocation)
+    del commandInfoList
 
-                if fileLocation != None:
-                    inFile = open(fileLocation, 'rt')
-                    answerBytes = inFile.read().encode("utf-8")
-                    inFile.close()
-                    headerBytes = "HTTP/1.1 200 OK"
-                else:
-                    headerBytes = "HTTP/1.1 404 File Not Found"
-            else:
-                headerBytes = "HTTP/1.1 400 Bad Request"
+    statusCode = None;
+    body       = "";
+
+    if httpCommand == "GET":
+        fileLocation = buildLocationString(fileLocation)
+
+        if fileLocation != None:
+            inFile = open(fileLocation, 'rt')
+            body = inFile.read()
+            statusCode    = 200;
+            inFile.close()
         else:
-            headerBytes = "HTTP/1.1 400 Bad Request"
+            statusCode = 404;
+    else:
+        statusCode = 400;
 
+    sendResponse(clsock, statusCode, body)
 
-        headerBytes += time.strftime('\nDate: %a, %d %b %Y %H:%M:%S GMT')
-        headerBytes += "\nContent-Type: text/html"
-        headerBytes += "\nX-Info: Billiger gehts nicht!\n"
-        clsock.send(headerBytes.encode("utf-8"))
-        clsock.send(answerBytes)
-
-        # finally close connection
-        clsock.close()
 
 if __name__ == '__main__':
     s = socket.socket()
     host = socket.gethostname()
-    port = 8080
+    port = 8888
     s.bind((host, port))
     s.listen(5)
 
-    print("billiger HTTP-Server jetzt live auf ", host, ':', port)
+    print("Come and GET some at ", host, 'on port ', port, '!')
 
     while True:
         conn, clientaddr = s.accept()
 
         t = threading.Thread(target=handleRequestInThread, args=[conn])
         t.start()
-        print('Abarbeitung von Request ', clientaddr, ' in Thread ', t.name)
+        print('Handling request from ', clientaddr, ' in thread with ID \'', t.name, '\'')
