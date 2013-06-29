@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import sys
 import socket
 import os
 import time
@@ -25,7 +26,7 @@ def buildResponseHeader(status):
     header  += time.strftime("Date: %a, %d %b %Y %H:%M:%S GMT\n")
     header  += "Content-Type: text/html\n"
     header  += "Content-Encoding: UTF-8\n"
-    header  += "Server: getsome\n"
+    header  += "Server: getsome\n\n"
 
     return header
 
@@ -39,7 +40,6 @@ def sendResponse(sinkSocket, statusCode, responseContent=""):
     totalsent = 0
     while totalsent < len(response):
         totalsent += sinkSocket.send(response[totalsent:].encode('utf-8'))
-        print(totalsent, " bytes sent!")
 
     # finally close connection
     sinkSocket.close()
@@ -73,18 +73,41 @@ def handleRequestInThread(clsock):
     sendResponse(clsock, statusCode, body)
 
 if __name__ == '__main__':
-    s = socket.socket()
-    host = socket.gethostname()
-    port = 8080
-    s.bind((host, port))
-    s.listen(5)
+    try:
+        # "parse" commandline arguments
+        port = int(sys.argv[1])
 
-    print("Come and GET some at ", host, 'on port ', port, '!')
+        s       = socket.socket()
+        host    = socket.gethostname()
+        threads = []
 
-    while True:
-        conn, clientaddr = s.accept()
+        s.bind((host, port))
+        s.listen(5)
 
-        t = threading.Thread(target=handleRequestInThread, args=[conn])
-        t.start()
+        print("Come and GET some at ", host, 'on port ', port, '!')
 
-        print('Handling request from ', clientaddr, ' in thread with ID \'', t.name, '\'')
+        while True:
+            conn, clientaddr = s.accept()
+
+            t = threading.Thread(target=handleRequestInThread, args=[conn])
+            t.start()
+            threads.append(t)
+
+            print('Handling request from ', clientaddr, ' in thread with ID \'', t.name, '\'')
+    
+    except IndexError:
+        print("Please pass the port getsome is supposed to serve on!")
+        sys.exit(-1)
+
+    except ValueError:
+        print("Please pass getsome's port as the ONLY argument! No more and no less!")
+        sys.exit(-2)
+
+    except KeyboardInterrupt:
+        print("Waiting for all clients to be served...")
+
+        for t in threads:
+            t.join
+
+        print("...serving done! Have a nice day!")
+        sys.exit(0)
