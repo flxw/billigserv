@@ -68,7 +68,10 @@ def handleRequestInThread(clsock):
         body       = inFile.read()
         inFile.close()
     else:
-        statusCode = 400;
+        statusCode  = 400
+        inFile      = open(os.getcwd() + "/400.html")
+        body        = inFile.read()
+        inFile.close()
 
     sendResponse(clsock, statusCode, body)
 
